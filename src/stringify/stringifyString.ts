@@ -15,8 +15,11 @@ interface StringifyScalar {
   type?: string
 }
 
-const getFoldOptions = (ctx: StringifyContext): FoldOptions => ({
-  indentAtStart: ctx.indentAtStart,
+const getFoldOptions = (
+  ctx: StringifyContext,
+  isBlock: boolean
+): FoldOptions => ({
+  indentAtStart: isBlock ? ctx.indent.length : ctx.indentAtStart,
   lineWidth: ctx.options.lineWidth,
   minContentWidth: ctx.options.minContentWidth
 })
@@ -132,7 +135,7 @@ function doubleQuotedString(value: string, ctx: StringifyContext) {
   str = start ? str + json.slice(start) : json
   return implicitKey
     ? str
-    : foldFlowLines(str, indent, FOLD_QUOTED, getFoldOptions(ctx))
+    : foldFlowLines(str, indent, FOLD_QUOTED, getFoldOptions(ctx, false))
 }
 
 function singleQuotedString(value: string, ctx: StringifyContext) {
@@ -148,7 +151,7 @@ function singleQuotedString(value: string, ctx: StringifyContext) {
     "'" + value.replace(/'/g, "''").replace(/\n+/g, `$&\n${indent}`) + "'"
   return ctx.implicitKey
     ? res
-    : foldFlowLines(res, indent, FOLD_FLOW, getFoldOptions(ctx))
+    : foldFlowLines(res, indent, FOLD_FLOW, getFoldOptions(ctx, false))
 }
 
 function quotedString(value: string, ctx: StringifyContext) {
@@ -163,6 +166,15 @@ function quotedString(value: string, ctx: StringifyContext) {
     else qs = singleQuote ? singleQuotedString : doubleQuotedString
   }
   return qs(value, ctx)
+}
+
+// The negative lookbehind avoids a polynomial search,
+// but isn't supported yet on Safari: https://caniuse.com/js-regexp-lookbehind
+let blockEndNewlines: RegExp
+try {
+  blockEndNewlines = new RegExp('(^|(?<!\n))\n+(?!\n|$)', 'g')
+} catch {
+  blockEndNewlines = /\n+(?!\n|$)/g
 }
 
 function blockString(
@@ -211,7 +223,7 @@ function blockString(
   if (end) {
     value = value.slice(0, -end.length)
     if (end[end.length - 1] === '\n') end = end.slice(0, -1)
-    end = end.replace(/\n+(?!\n|$)/g, `$&${indent}`)
+    end = end.replace(blockEndNewlines, `$&${indent}`)
   }
 
   // determine indent indicator from whitespace at value start
@@ -254,7 +266,7 @@ function blockString(
     `${start}${value}${end}`,
     indent,
     FOLD_BLOCK,
-    getFoldOptions(ctx)
+    getFoldOptions(ctx, true)
   )
   return `${header}\n${indent}${body}`
 }
@@ -266,7 +278,7 @@ function plainString(
   onChompKeep?: () => void
 ) {
   const { type, value } = item
-  const { actualString, implicitKey, indent, inFlow } = ctx
+  const { actualString, implicitKey, indent, indentStep, inFlow } = ctx
   if (
     (implicitKey && /[\n[\]{},]/.test(value)) ||
     (inFlow && /[[\]{},]/.test(value))
@@ -298,9 +310,13 @@ function plainString(
     // Where allowed & type not set explicitly, prefer block style for multiline strings
     return blockString(item, ctx, onComment, onChompKeep)
   }
-  if (indent === '' && containsDocumentMarker(value)) {
-    ctx.forceBlockIndent = true
-    return blockString(item, ctx, onComment, onChompKeep)
+  if (containsDocumentMarker(value)) {
+    if (indent === '') {
+      ctx.forceBlockIndent = true
+      return blockString(item, ctx, onComment, onChompKeep)
+    } else if (implicitKey && indent === indentStep) {
+      return quotedString(value, ctx)
+    }
   }
   const str = value.replace(/\n+/g, `$&\n${indent}`)
   // Verify that output will be parsed as a string, as e.g. plain numbers and
@@ -314,11 +330,11 @@ function plainString(
   }
   return implicitKey
     ? str
-    : foldFlowLines(str, indent, FOLD_FLOW, getFoldOptions(ctx))
+    : foldFlowLines(str, indent, FOLD_FLOW, getFoldOptions(ctx, false))
 }
 
 export function stringifyString(
-  item: Scalar,
+  item: Scalar | StringifyScalar,
   ctx: StringifyContext,
   onComment?: () => void,
   onChompKeep?: () => void
@@ -336,7 +352,7 @@ export function stringifyString(
       type = Scalar.QUOTE_DOUBLE
   }
 
-  const _stringify = (_type: Scalar.Type | undefined) => {
+  const _stringify = (_type: string | undefined) => {
     switch (_type) {
       case Scalar.BLOCK_FOLDED:
       case Scalar.BLOCK_LITERAL:

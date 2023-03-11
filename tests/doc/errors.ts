@@ -122,6 +122,62 @@ describe('block collections', () => {
       }
     ])
   })
+
+  test('key after long comment on empty value (eemeli/yaml#413)', () => {
+    const doc = YAML.parseDocument(source`
+      one:
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+      two: b
+    `)
+    expect(doc.errors).toMatchObject([])
+  })
+
+  test('key after long comment on block map (eemeli/yaml#413)', () => {
+    const doc = YAML.parseDocument(source`
+      one:
+        sub: a
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+      two: b
+    `)
+    expect(doc.errors).toMatchObject([])
+  })
+
+  test('key after long comment on block seq (eemeli/yaml#413)', () => {
+    const doc = YAML.parseDocument(source`
+      one:
+        - a
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+        # large block of text, large block of text, large block of text, large block of text, large block of text,
+      two: b
+    `)
+    expect(doc.errors).toMatchObject([])
+  })
 })
 
 describe('flow collections', () => {
@@ -315,6 +371,7 @@ describe('invalid options', () => {
   })
 
   test('unknown custom tag', () => {
+    // @ts-expect-error Deprecated option
     expect(() => new YAML.Document(undefined, { customTags: ['foo'] })).toThrow(
       /Unknown custom tag/
     )
